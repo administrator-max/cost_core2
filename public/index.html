@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="description" content="Cost Core Cloud - Steel Product Cost System">
+<title>Cost Core (CC) - Cloud</title>
+
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- Separated External CSS -->
+<link rel="stylesheet" href="/style.css">
+
+<!-- External Libraries for Exporting (Secured with Cross-Origin policies) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+</head>
+<body>
+
+<noscript>
+  <div style="padding: 20px; background: #e03e3e; color: white; text-align: center; font-family: sans-serif;">
+    <strong>JavaScript is required.</strong> Please enable JavaScript in your browser settings to use Cost Core Cloud.
+  </div>
+</noscript>
+
+<!-- The main application UI will be injected here by app.js -->
+<div id="app"></div>
+
+<!-- Authentication Lock Screen Modal -->
+<div id="lockScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);align-items:center;justify-content:center">
+  <div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:16px;padding:2.2rem;width:100%;max-width:380px;margin:1rem;box-shadow:0 8px 30px rgba(0,0,0,.08)">
+    <div style="text-align:center;margin-bottom:1.2rem">
+      <div style="width:64px;height:64px;border-radius:14px;background:#1a73e8;margin:0 auto .6rem;display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:bold;">CC</div>
+      <h2 style="font-size:1.1rem;font-weight:700;color:var(--t1)">Cost Core Cloud</h2>
+      <p id="lockMsg" style="font-size:.75rem;color:var(--t4);margin-top:.3rem">Enter password to continue</p>
+    </div>
+    <div style="margin-bottom:.8rem">
+      <label style="font-size:.65rem;color:var(--t4);text-transform:uppercase;letter-spacing:.04em;font-weight:500;display:block;margin-bottom:.2rem" for="lockPw">Password</label>
+      <input type="password" id="lockPw" class="fi" style="width:100%;font-size:.85rem;padding:.5rem .7rem" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')authLogin()">
+    </div>
+    <div id="lockErr" style="display:none;background:rgba(224,62,62,.06);border:1px solid rgba(224,62,62,.15);border-radius:8px;padding:.4rem .6rem;font-size:.75rem;color:var(--rd);margin-bottom:.6rem;text-align:center"></div>
+    <button onclick="authLogin()" style="width:100%;padding:.55rem;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer;background:#1a73e8;color:#fff;font-family:inherit;box-shadow:0 2px 6px rgba(26,115,232,.3)">Unlock Database</button>
+    <p style="font-size:.62rem;color:var(--t4);text-align:center;margin-top:.8rem">Secure Cloud Authentication</p>
+  </div>
+</div>
+
+<!-- Password Change Modal -->
+<div id="changePwModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(26,34,54,.35);backdrop-filter:blur(3px);align-items:center;justify-content:center">
+  <div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:14px;padding:1.8rem;width:100%;max-width:400px;margin:1rem;box-shadow:0 16px 50px rgba(0,0,0,.1)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 style="font-size:1rem;font-weight:700">Change Cloud Passwords</h2>
+      <button onclick="closePwModal()" style="background:none;border:none;color:var(--t4);font-size:1.2rem;cursor:pointer" aria-label="Close">&times;</button>
+    </div>
+    <div id="pwChMsg" style="display:none;border-radius:8px;padding:.4rem .6rem;font-size:.75rem;margin-bottom:.6rem;text-align:center"></div>
+    
+    <div style="margin-bottom:.7rem">
+      <label style="font-size:.65rem;color:var(--t4);text-transform:uppercase;letter-spacing:.04em;font-weight:500;display:block;margin-bottom:.2rem" for="pwCurr">Current Admin Password (B)</label>
+      <input type="password" id="pwCurr" class="fi" style="font-size:.82rem;padding:.45rem .6rem" placeholder="Enter current Password B" autocomplete="current-password">
+    </div>
+    
+    <div style="margin-bottom:.7rem">
+      <label style="font-size:.65rem;color:var(--t4);text-transform:uppercase;letter-spacing:.04em;font-weight:500;display:block;margin-bottom:.2rem" for="pwNewA">New Password A (14-day user)</label>
+      <input type="password" id="pwNewA" class="fi" style="font-size:.82rem;padding:.45rem .6rem" placeholder="New Password A" autocomplete="new-password">
+    </div>
+    
+    <div style="margin-bottom:.7rem">
+      <label style="font-size:.65rem;color:var(--t4);text-transform:uppercase;letter-spacing:.04em;font-weight:500;display:block;margin-bottom:.2rem" for="pwNewB">New Password B (daily admin)</label>
+      <input type="password" id="pwNewB" class="fi" style="font-size:.82rem;padding:.45rem .6rem" placeholder="New Password B" autocomplete="new-password">
+    </div>
+    
+    <button onclick="changePasswords()" style="width:100%;padding:.5rem;border-radius:8px;font-size:.8rem;font-weight:600;border:none;cursor:pointer;background:#1a73e8;color:#fff;font-family:inherit;margin-top:.3rem">Save Changes</button>
+    <p style="font-size:.6rem;color:var(--t4);text-align:center;margin-top:.6rem">Leave a field empty to keep current password</p>
+  </div>
+</div>
+
+<!-- Cloud Load Modal -->
+<div id="loadCloudModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(26,34,54,.35);backdrop-filter:blur(3px);align-items:center;justify-content:center">
+  <div style="background:var(--bg2);border:1px solid var(--bdr);border-radius:14px;padding:1.8rem;width:100%;max-width:500px;margin:1rem;box-shadow:0 16px 50px rgba(0,0,0,.1)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 style="font-size:1rem;font-weight:700">☁️ Load Saved Costing</h2>
+      <button onclick="closeLoadModal()" style="background:none;border:none;color:var(--t4);font-size:1.2rem;cursor:pointer" aria-label="Close">&times;</button>
+    </div>
+    <div id="cloudList" style="max-height:300px;overflow-y:auto;border:1px solid var(--bdr2);border-radius:8px;padding:.5rem;"></div>
+  </div>
+</div>
+
+<!-- Separated External Scripts -->
+<script src="/data.js"></script>
+<script src="/app.js"></script>
+
+</body>
+</html>
