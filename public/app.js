@@ -165,7 +165,24 @@ async function loadSingleCosting(id) {
 // ═══ EXPORTS ═══
 function xPDF(id,fn,ori){var el=document.getElementById(id);if(!el)return;el.style.display="block";html2pdf().set({margin:ori==="portrait"?12:8,filename:fn,html2canvas:{scale:2},jsPDF:{unit:"mm",format:"a4",orientation:ori}}).from(el).save().then(function(){el.style.display="none"})}
 
+function xlReady(){
+  if(typeof XLSX==="undefined"){
+    alert("Excel export library is not ready. Please refresh the page and try again.");
+    return false;
+  }
+  return true;
+}
+function xlName(s){return String(s||"Project").replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim()||"Project"}
+function xlNum(v){return {v:isFinite(Number(v))?Number(v):0,t:"n"}}
+function xlFormula(f,v){return {f:f,v:isFinite(Number(v))?Number(v):0,t:"n"}}
+function xlFinish(wb){
+  wb.Workbook=wb.Workbook||{};
+  wb.Workbook.CalcPr={fullCalcOnLoad:true};
+  return wb;
+}
+
 function iExpXLS(){
+  if(!xlReady())return;
   var a=iAll(),R=a.R,tT=a.tT;
   var sl=I.shipType==="breakbulk"?"Break Bulk":I.shipType==="container20"?"Container 20ft":"Container 40ft";
   var kurs=I.kurs,dutyPct=I.importDuty,whtPct=I.wht,hedgeR=I.hedgeRate,hedgeD=I.hedgeDays;
@@ -179,20 +196,22 @@ function iExpXLS(){
     var it=rr.item,c=rr.c;if(!it.cif||!it.qty)return;
     var n=row;
     XLSX.utils.sheet_add_aoa(ws,[[idx+1,it.name,c.qty,Number(it.cif)]],{origin:"A"+n});
-    ws["E"+n]={f:"D"+n+"*"+dutyPct}; ws["F"+n]={f:"(D"+n+"+E"+n+")*"+whtPct}; ws["G"+n]={f:"D"+n+"+E"+n+"+F"+n}; ws["H"+n]={f:"G"+n+"*"+kurs+"/1000"}; ws["I"+n]={f:"1.1*G"+n+"*0.0005*"+kurs+"/1000"}; ws["J"+n]={v:c.pc,t:"n"}; ws["K"+n]={v:c.pb,t:"n"}; ws["L"+n]={v:Math.round(c.kso),t:"n"}; ws["M"+n]={f:hedgeR+"*D"+n+"*"+hedgeD+"/1000"}; ws["N"+n]={v:Math.round(c.trk),t:"n"}; ws["O"+n]={v:c.st,t:"n"}; ws["P"+n]={v:Math.round(c.cm),t:"n"}; ws["Q"+n]={v:c.ac,t:"n"}; ws["R"+n]={f:"H"+n+"+I"+n+"+J"+n+"+K"+n+"+L"+n+"+M"+n+"+N"+n+"+O"+n+"+P"+n+"+Q"+n};
-    if(I.marginType==="percent"){ ws["T"+n]={f:"CEILING(R"+n+"/(1-"+(I.margin/100)+"),25)"}; ws["S"+n]={f:"T"+n+"-R"+n}; }
-    else{ ws["T"+n]={f:"CEILING(R"+n+"+"+I.margin+",25)"}; ws["S"+n]={f:"T"+n+"-R"+n}; }
-    ws["U"+n]={f:"CEILING(T"+n+"*1.11,25)"}; ws["V"+n]={f:"S"+n+"*C"+n+"*1000"}; ws["W"+n]={f:"T"+n+"*C"+n+"*1000"};
+    ws["E"+n]=xlFormula("D"+n+"*"+dutyPct,c.du); ws["F"+n]=xlFormula("(D"+n+"+E"+n+")*"+whtPct,c.wh); ws["G"+n]=xlFormula("D"+n+"+E"+n+"+F"+n,c.bU); ws["H"+n]=xlFormula("G"+n+"*"+kurs+"/1000",c.bI); ws["I"+n]=xlFormula("1.1*G"+n+"*0.0005*"+kurs+"/1000",c.ins); ws["J"+n]=xlNum(c.pc); ws["K"+n]=xlNum(c.pb); ws["L"+n]=xlNum(c.kso); ws["M"+n]=xlFormula(hedgeR+"*D"+n+"*"+hedgeD+"/1000",c.hd); ws["N"+n]=xlNum(c.trk); ws["O"+n]=xlNum(c.st); ws["P"+n]=xlNum(c.cm); ws["Q"+n]=xlNum(c.ac); ws["R"+n]=xlFormula("H"+n+"+I"+n+"+J"+n+"+K"+n+"+L"+n+"+M"+n+"+N"+n+"+O"+n+"+P"+n+"+Q"+n,c.ddp);
+    if(I.marginType==="percent"){ ws["T"+n]=xlFormula("CEILING(R"+n+"/(1-"+(I.margin/100)+"),25)",c.sell); ws["S"+n]=xlFormula("T"+n+"-R"+n,c.mV); }
+    else{ ws["T"+n]=xlFormula("CEILING(R"+n+"+"+I.margin+",25)",c.sell); ws["S"+n]=xlFormula("T"+n+"-R"+n,c.mV); }
+    ws["U"+n]=xlFormula("CEILING(T"+n+"*1.11,25)",c.sp); ws["V"+n]=xlFormula("S"+n+"*C"+n+"*1000",c.tM); ws["W"+n]=xlFormula("T"+n+"*C"+n+"*1000",c.tP);
     dataRows.push(n); row++;
   });
   row++;var tn=row; ws["A"+tn]={v:"",t:"s"};ws["B"+tn]={v:"TOTAL",t:"s"};
-  if(dataRows.length){ var f=dataRows[0],l=dataRows[dataRows.length-1]; ws["C"+tn]={f:"SUM(C"+f+":C"+l+")"}; ws["V"+tn]={f:"SUM(V"+f+":V"+l+")"}; ws["W"+tn]={f:"SUM(W"+f+":W"+l+")"}; }
-  ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:row,c:22}});
+  if(dataRows.length){ var f=dataRows[0],l=dataRows[dataRows.length-1]; ws["C"+tn]=xlFormula("SUM(C"+f+":C"+l+")",tT); ws["V"+tn]=xlFormula("SUM(V"+f+":V"+l+")",a.tM); ws["W"+tn]=xlFormula("SUM(W"+f+":W"+l+")",a.tP); }
+  ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tn-1,c:22}});
   ws["!cols"]=[{wch:4},{wch:28},{wch:8},{wch:9},{wch:9},{wch:9},{wch:10},{wch:11},{wch:9},{wch:6},{wch:6},{wch:7},{wch:7},{wch:7},{wch:6},{wch:6},{wch:7},{wch:10},{wch:9},{wch:10},{wch:10},{wch:13},{wch:14}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");XLSX.writeFile(wb,"Costing_Import_"+(I.customer||"Project")+"_"+new Date().toISOString().slice(0,10)+".xlsx");
+  ws["!autofilter"]={ref:"A4:W"+(dataRows.length?dataRows[dataRows.length-1]:4)};
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");XLSX.writeFile(xlFinish(wb),"Costing_Import_"+xlName(I.customer)+"_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
 
 function dExpXLS(){
+  if(!xlReady())return;
   var a=dAll(),R=a.R,tQ=a.tQ,tk=a.tk;
   var whtR=D.whtRate;
   var hdr=[["Domestic Costing — "+(D.customer||"Project")], ["WHT%",whtR,"Trucking IDR/kg",tk], [], ["No","Item","QTY(KG)","Buy Price","WHT","Total Buy","Trucking","Margin","Sell Price","Margin Tot","Project Tot","Remark"]];
@@ -202,14 +221,15 @@ function dExpXLS(){
     var it=rr.item,c=rr.c;if(!it.buyPrice||!it.qtyKg)return;
     var n=row;
     XLSX.utils.sheet_add_aoa(ws,[[idx+1,it.name,Number(it.qtyKg),Number(it.buyPrice)]],{origin:"A"+n});
-    ws["E"+n]={f:"D"+n+"*"+whtR}; ws["F"+n]={f:"D"+n+"+E"+n}; ws["G"+n]={v:+c.tk.toFixed(2),t:"n"}; ws["H"+n]={v:c.mg,t:"n"}; ws["I"+n]={f:"CEILING(F"+n+"+G"+n+"+H"+n+",25)"}; ws["J"+n]={f:"H"+n+"*C"+n}; ws["K"+n]={f:"I"+n+"*C"+n}; ws["L"+n]={v:it.remark||"",t:"s"};
+    ws["E"+n]=xlFormula("D"+n+"*"+whtR,c.wh); ws["F"+n]=xlFormula("D"+n+"+E"+n,c.tb); ws["G"+n]=xlNum(c.tk); ws["H"+n]=xlNum(c.mg); ws["I"+n]=xlFormula("CEILING(F"+n+"+G"+n+"+H"+n+",25)",c.sell); ws["J"+n]=xlFormula("H"+n+"*C"+n,c.tM); ws["K"+n]=xlFormula("I"+n+"*C"+n,c.tP); ws["L"+n]={v:it.remark||"",t:"s"};
     dataRows.push(n); row++;
   });
   row++;var tn=row; ws["A"+tn]={v:"",t:"s"};ws["B"+tn]={v:"TOTAL",t:"s"};
-  if(dataRows.length){ var f=dataRows[0],l=dataRows[dataRows.length-1]; ws["C"+tn]={f:"SUM(C"+f+":C"+l+")"}; ws["J"+tn]={f:"SUM(J"+f+":J"+l+")"}; ws["K"+tn]={f:"SUM(K"+f+":K"+l+")"}; }
-  ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:row,c:11}});
+  if(dataRows.length){ var f=dataRows[0],l=dataRows[dataRows.length-1]; ws["C"+tn]=xlFormula("SUM(C"+f+":C"+l+")",tQ); ws["J"+tn]=xlFormula("SUM(J"+f+":J"+l+")",a.tM); ws["K"+tn]=xlFormula("SUM(K"+f+":K"+l+")",a.tP); }
+  ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tn-1,c:11}});
   ws["!cols"]=[{wch:4},{wch:28},{wch:10},{wch:11},{wch:9},{wch:11},{wch:9},{wch:9},{wch:11},{wch:13},{wch:14},{wch:14}];
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");XLSX.writeFile(wb,"Costing_Domestic_"+(D.customer||"Project")+"_"+new Date().toISOString().slice(0,10)+".xlsx");
+  ws["!autofilter"]={ref:"A4:L"+(dataRows.length?dataRows[dataRows.length-1]:4)};
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");XLSX.writeFile(xlFinish(wb),"Costing_Domestic_"+xlName(D.customer)+"_"+new Date().toISOString().slice(0,10)+".xlsx");
 }
 
 // ═══ UPLOAD & PARSING ═══
@@ -252,9 +272,11 @@ function render(){
     if(G.page==="import"){
       var st=I;
       h+='<button class="btn btn-gn" onclick="xPDF(\'pArea\',\'Costing_Import_'+(I.customer||'Project')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'landscape\')">\uD83D\uDCC4 Costing PDF</button>';
+      h+='<button class="btn btn-o" onclick="iExpXLS()">\uD83D\uDCC8 Excel</button>';
       h+='<button class="btn btn-bl" onclick="xPDF(\'qArea\',\'Quotation_'+(I.customer||'Client')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'portrait\')">\uD83D\uDCCB Quotation</button>';
     }else{
       h+='<button class="btn btn-gn" onclick="xPDF(\'dpArea\',\'Costing_Domestic_'+(D.customer||'Project')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'landscape\')">\uD83D\uDCC4 Costing PDF</button>';
+      h+='<button class="btn btn-o" onclick="dExpXLS()">\uD83D\uDCC8 Excel</button>';
       h+='<button class="btn btn-bl" onclick="xPDF(\'dqArea\',\'Quotation_Domestic_'+(D.customer||'Client')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'portrait\')">\uD83D\uDCCB Quotation</button>';
     }
 
