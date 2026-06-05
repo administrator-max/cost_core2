@@ -86,8 +86,21 @@ async function changePasswords(){
 authCheck();
 
 // ═══ APPLICATION STATE ═══
-var G={page:"import"};
-var I={shipType:"breakbulk",customer:"",kurs:17050,importDuty:0,wht:.025,portCharges:370,hedgeRate:1,hedgeDays:60,tujuan:"Cakung",isPipa:false,stripping:0,addCost:0,commission:0,commUnit:"idr",marginType:"fixed",margin:900,payTerms:PAY_OPTS[0],items:[_mi(),_mi(),_mi()],paramsOpen:true,bdOpen:true,showUpload:false,upTab:"excel",uping:false,upPreview:null,upErr:"",pasteTxt:"",showPL:false};
+var G={page:"import",xlMenu:false};
+// Close the Excel dropdown when clicking anywhere outside it
+document.addEventListener("click",function(){if(G.xlMenu){G.xlMenu=false;render();}});
+
+function xlDropdownHTML(){
+  var open=G.xlMenu;
+  return '<div style="position:relative;display:inline-block">'
+    +'<button class="btn btn-o" onclick="event.stopPropagation();G.xlMenu=!G.xlMenu;render()">📈 Excel ▾</button>'
+    +(open?'<div style="position:absolute;top:calc(100% + 4px);right:0;z-index:1000;background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.12);overflow:hidden;min-width:175px" onclick="event.stopPropagation()">'
+      +'<button class="xl-mi" onclick="xlDownload()">⬇️ Download</button>'
+      +'<button class="xl-mi" style="border-top:1px solid var(--bdr2)" onclick="xlToDrive()">☁️ Send to Drive</button>'
+    +'</div>':'')
+  +'</div>';
+}
+var I={shipType:"breakbulk",customer:"",kurs:17050,importDuty:0,wht:.025,portCharges:370,hedgeRate:2.5,hedgeDays:60,tujuan:"Cakung",isPipa:false,stripping:0,addCost:0,commission:0,commUnit:"idr",marginType:"fixed",margin:900,payTerms:PAY_OPTS[0],items:[_mi(),_mi(),_mi()],paramsOpen:true,bdOpen:true,showUpload:false,upTab:"excel",uping:false,upPreview:null,upErr:"",pasteTxt:"",showPL:false};
 var D={customer:"",whtRate:.003,margins:[{name:"A",val:1000},{name:"B",val:800},{name:"C",val:600}],trkCost:0,trkFrom:"",trkTo:"",payTerms:PAY_OPTS[0],items:[_md(),_md(),_md()],showUpload:false,upTab:"excel",uping:false,upPreview:null,upErr:"",pasteTxt:"",showPL:false};
 
 function _mi(){return{id:Date.now()+Math.random(),name:"",qty:"",cif:"",remark:""}}
@@ -138,9 +151,12 @@ async function loadCloudModalOpen() {
       else {
           cl.innerHTML = rows.map(function(r){
               var d = new Date(r.created_at).toLocaleDateString();
-              return `<div style="display:flex;justify-content:space-between;padding:.5rem;border-bottom:1px solid #ddd;align-items:center;">
-                        <div><b>${esc(r.customer)}</b> <span style="font-size:12px;color:#777">${d}</span></div>
-                        <button class="btn btn-bl btn-sm" onclick="loadSingleCosting('${r.id}')">Load</button>
+              return `<div style="display:flex;justify-content:space-between;padding:.5rem;border-bottom:1px solid #ddd;align-items:center;gap:.4rem;">
+                        <div style="min-width:0;flex:1"><b>${esc(r.customer)}</b> <span style="font-size:12px;color:#777">${d}</span></div>
+                        <div style="display:flex;gap:.35rem;flex-shrink:0">
+                          <button class="btn btn-bl btn-sm" onclick="loadSingleCosting('${r.id}')">Load</button>
+                          <button class="btn btn-sm" style="background:#e03e3e;color:#fff;font-weight:600" onclick="deleteCosting('${r.id}', '${esc(r.customer).replace(/'/g, "\\'")}')" title="Delete">🗑️</button>
+                        </div>
                       </div>`;
           }).join("");
       }
@@ -162,6 +178,18 @@ async function loadSingleCosting(id) {
   } catch(e) { alert("Error retrieving costing data."); }
 }
 
+async function deleteCosting(id, name) {
+  if(!confirm('Delete costing "'+name+'"?\nThis cannot be undone.')) return;
+  try {
+      var res = await fetch('/api/costings/' + id, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${AUTH.getToken()}` }
+      });
+      if(res.ok) loadCloudModalOpen(); // refresh the list in place
+      else alert("Failed to delete costing");
+  } catch(e) { alert("Error deleting costing."); }
+}
+
 // ═══ EXPORTS ═══
 function xPDF(id,fn,ori){var el=document.getElementById(id);if(!el)return;el.style.display="block";html2pdf().set({margin:ori==="portrait"?12:8,filename:fn,html2canvas:{scale:2},jsPDF:{unit:"mm",format:"a4",orientation:ori}}).from(el).save().then(function(){el.style.display="none"})}
 
@@ -181,8 +209,8 @@ function xlFinish(wb){
   return wb;
 }
 
-function iExpXLS(){
-  if(!xlReady())return;
+function iBuildXLS(){
+  if(!xlReady())return null;
   var a=iAll(),R=a.R,tT=a.tT;
   var sl=I.shipType==="breakbulk"?"Break Bulk":I.shipType==="container20"?"Container 20ft":"Container 40ft";
   var kurs=I.kurs,dutyPct=I.importDuty,whtPct=I.wht,hedgeR=I.hedgeRate,hedgeD=I.hedgeDays;
@@ -207,11 +235,12 @@ function iExpXLS(){
   ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tn-1,c:22}});
   ws["!cols"]=[{wch:4},{wch:28},{wch:8},{wch:9},{wch:9},{wch:9},{wch:10},{wch:11},{wch:9},{wch:6},{wch:6},{wch:7},{wch:7},{wch:7},{wch:6},{wch:6},{wch:7},{wch:10},{wch:9},{wch:10},{wch:10},{wch:13},{wch:14}];
   ws["!autofilter"]={ref:"A4:W"+(dataRows.length?dataRows[dataRows.length-1]:4)};
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");XLSX.writeFile(xlFinish(wb),"Costing_Import_"+xlName(I.customer)+"_"+new Date().toISOString().slice(0,10)+".xlsx");
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");
+  return {wb:xlFinish(wb), filename:"Costing_Import_"+xlName(I.customer)+"_"+new Date().toISOString().slice(0,10)+".xlsx"};
 }
 
-function dExpXLS(){
-  if(!xlReady())return;
+function dBuildXLS(){
+  if(!xlReady())return null;
   var a=dAll(),R=a.R,tQ=a.tQ,tk=a.tk;
   var whtR=D.whtRate;
   var hdr=[["Domestic Costing — "+(D.customer||"Project")], ["WHT%",whtR,"Trucking IDR/kg",tk], [], ["No","Item","QTY(KG)","Buy Price","WHT","Total Buy","Trucking","Margin","Sell Price","Margin Tot","Project Tot","Remark"]];
@@ -229,7 +258,48 @@ function dExpXLS(){
   ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tn-1,c:11}});
   ws["!cols"]=[{wch:4},{wch:28},{wch:10},{wch:11},{wch:9},{wch:11},{wch:9},{wch:9},{wch:11},{wch:13},{wch:14},{wch:14}];
   ws["!autofilter"]={ref:"A4:L"+(dataRows.length?dataRows[dataRows.length-1]:4)};
-  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");XLSX.writeFile(xlFinish(wb),"Costing_Domestic_"+xlName(D.customer)+"_"+new Date().toISOString().slice(0,10)+".xlsx");
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Costing");
+  return {wb:xlFinish(wb), filename:"Costing_Domestic_"+xlName(D.customer)+"_"+new Date().toISOString().slice(0,10)+".xlsx"};
+}
+
+// ═══ EXCEL ACTIONS: Download vs Send to Drive ═══
+function toast(msg, type){
+  var t=document.getElementById("ccToast");
+  if(!t){t=document.createElement("div");t.id="ccToast";t.style.cssText="position:fixed;bottom:20px;right:20px;z-index:10000;padding:.7rem 1rem;border-radius:10px;font-size:.82rem;font-weight:600;font-family:inherit;box-shadow:0 8px 30px rgba(0,0,0,.18);max-width:340px;transition:opacity .3s";document.body.appendChild(t)}
+  var c=type==="err"?["#fdecea","#e03e3e"]:type==="info"?["#e8eef6","#1557b0"]:["#e6f6ef","#0d9f6e"];
+  t.style.background=c[0];t.style.color=c[1];t.innerHTML=msg;t.style.opacity="1";
+  clearTimeout(window._toastT);
+  if(type!=="info")window._toastT=setTimeout(function(){t.style.opacity="0"},4500);
+}
+
+function xlBuild(){ return G.page==="import"?iBuildXLS():dBuildXLS(); }
+
+function xlDownload(){
+  G.xlMenu=false;
+  var b=xlBuild(); if(!b){render();return;}
+  XLSX.writeFile(b.wb, b.filename);
+  render();
+}
+
+async function xlToDrive(){
+  G.xlMenu=false; render();
+  var b=xlBuild(); if(!b)return;
+  toast("☁️ Uploading <b>"+esc(b.filename)+"</b> to Drive...","info");
+  try {
+    var b64=XLSX.write(b.wb,{bookType:"xlsx",type:"base64"});
+    var res=await fetch("/api/export/drive",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${AUTH.getToken()}`},
+      body:JSON.stringify({filename:b.filename, contentBase64:b64})
+    });
+    var data=await res.json();
+    if(res.ok){
+      var link=data.link?' &mdash; <a href="'+data.link+'" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Open</a>':'';
+      toast("✅ Sent to Drive: <b>"+esc(data.name||b.filename)+"</b>"+link,"ok");
+    } else {
+      toast("⚠️ Upload failed: "+esc(data.error||"Unknown error"),"err");
+    }
+  } catch(e){ toast("⚠️ Error sending to Drive: "+esc(e.message),"err"); }
 }
 
 // ═══ UPLOAD & PARSING ═══
@@ -272,11 +342,11 @@ function render(){
     if(G.page==="import"){
       var st=I;
       h+='<button class="btn btn-gn" onclick="xPDF(\'pArea\',\'Costing_Import_'+(I.customer||'Project')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'landscape\')">\uD83D\uDCC4 Costing PDF</button>';
-      h+='<button class="btn btn-o" onclick="iExpXLS()">\uD83D\uDCC8 Excel</button>';
+      h+=xlDropdownHTML();
       h+='<button class="btn btn-bl" onclick="xPDF(\'qArea\',\'Quotation_'+(I.customer||'Client')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'portrait\')">\uD83D\uDCCB Quotation</button>';
     }else{
       h+='<button class="btn btn-gn" onclick="xPDF(\'dpArea\',\'Costing_Domestic_'+(D.customer||'Project')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'landscape\')">\uD83D\uDCC4 Costing PDF</button>';
-      h+='<button class="btn btn-o" onclick="dExpXLS()">\uD83D\uDCC8 Excel</button>';
+      h+=xlDropdownHTML();
       h+='<button class="btn btn-bl" onclick="xPDF(\'dqArea\',\'Quotation_Domestic_'+(D.customer||'Client')+'_'+new Date().toISOString().slice(0,10)+'.pdf\',\'portrait\')">\uD83D\uDCCB Quotation</button>';
     }
 

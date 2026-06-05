@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const { google } = require('googleapis');
 require('dotenv').config();
 
 const app = express();
@@ -13,6 +15,37 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // JWT Secret - Uses environment variable or fallback for development
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secure-cost-core-secret';
+
+// --- GOOGLE DRIVE SETUP ---
+// Target Shared Drive (ID starts with 0A — must use supportsAllDrives).
+// The service account must be a member of this Shared Drive with Editor access.
+const GDRIVE_FOLDER_ID = process.env.GDRIVE_FOLDER_ID || '0AAI1KGVmJHZjUk9PVA';
+
+// Resolve service account credentials: inline JSON env > file path env > local file
+const loadServiceAccount = () => {
+    if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+        return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+    }
+    const filePath = process.env.GOOGLE_APPLICATION_CREDENTIALS
+        || path.join(__dirname, 'service-account.json');
+    if (fs.existsSync(filePath)) {
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    }
+    return null;
+};
+
+let _driveClient = null;
+const getDrive = () => {
+    if (_driveClient) return _driveClient;
+    const creds = loadServiceAccount();
+    if (!creds) throw new Error('Service account credentials not found');
+    const auth = new google.auth.GoogleAuth({
+        credentials: creds,
+        scopes: ['https://www.googleapis.com/auth/drive']
+    });
+    _driveClient = google.drive({ version: 'v3', auth });
+    return _driveClient;
+};
 
 // PostgreSQL Connection (Neon DB)
 const pool = new Pool({
@@ -42,7 +75,7 @@ const initDb = async () => {
                 import_duty NUMERIC(5, 4) DEFAULT 0,
                 wht NUMERIC(5, 4) DEFAULT 0.025,
                 port_charges NUMERIC(15, 2) DEFAULT 370,
-                hedge_rate NUMERIC(10, 2) DEFAULT 1,
+                hedge_rate NUMERIC(10, 2) DEFAULT 2.5,
                 hedge_days INTEGER DEFAULT 60,
                 tujuan VARCHAR(255) DEFAULT 'Cakung',
                 is_pipa BOOLEAN DEFAULT false,
@@ -305,6 +338,66 @@ app.get('/api/costings/load/:type_id', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/api/costings/:type_id', authenticateToken, async (req, res) => {
+    const { type_id } = req.params;
+    const [type, id] = type_id.split('_'); // Split 'import_4' back into 'import' and '4'
+
+    if (type !== 'import' && type !== 'domestic') {
+        return res.status(400).json({ error: 'Invalid type' });
+    }
+    if (!/^\d+$/.test(id)) {
+        return res.status(400).json({ error: 'Invalid id' });
+    }
+
+    try {
+        const table = type === 'import' ? 'import_costings' : 'domestic_costings';
+        // Child rows are removed automatically via ON DELETE CASCADE
+        const result = await pool.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+        if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Delete error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// --- GOOGLE DRIVE EXPORT ENDPOINT ---
+app.post('/api/export/drive', authenticateToken, async (req, res) => {
+    const { filename, contentBase64 } = req.body;
+    if (!filename || !contentBase64) {
+        return res.status(400).json({ error: 'Missing filename or file content' });
+    }
+
+    try {
+        const drive = getDrive();
+        const buffer = Buffer.from(contentBase64, 'base64');
+        const { Readable } = require('stream');
+
+        const result = await drive.files.create({
+            requestBody: {
+                name: filename,
+                parents: [GDRIVE_FOLDER_ID]
+            },
+            media: {
+                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                body: Readable.from(buffer)
+            },
+            fields: 'id, name, webViewLink',
+            supportsAllDrives: true // required for Shared Drives
+        });
+
+        res.json({
+            success: true,
+            id: result.data.id,
+            name: result.data.name,
+            link: result.data.webViewLink
+        });
+    } catch (err) {
+        console.error('Drive upload error:', err.message);
+        res.status(500).json({ error: 'Drive upload failed: ' + err.message });
     }
 });
 
