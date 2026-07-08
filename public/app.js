@@ -100,7 +100,7 @@ function xlDropdownHTML(){
     +'</div>':'')
   +'</div>';
 }
-var I={shipType:"breakbulk",customer:"",kurs:17050,importDuty:0,wht:.025,portCharges:370,hedgeRate:2.5,hedgeDays:60,tujuan:"Cakung",isPipa:false,stripping:0,addCost:0,commission:0,commUnit:"idr",marginType:"fixed",margin:900,payTerms:PAY_OPTS[0],items:[_mi(),_mi(),_mi()],paramsOpen:true,bdOpen:true,showUpload:false,upTab:"excel",uping:false,upPreview:null,upErr:"",pasteTxt:"",showPL:false};
+var I={shipType:"breakbulk",customer:"",kurs:17050,importDuty:0,wht:.025,portCharges:370,hedgeRate:2.2,hedgeDays:60,tujuan:"Cakung",isPipa:false,stripping:0,addCost:0,commission:0,commUnit:"idr",marginType:"fixed",margin:900,payTerms:PAY_OPTS[0],items:[_mi(),_mi(),_mi()],paramsOpen:true,bdOpen:true,showUpload:false,upTab:"excel",uping:false,upPreview:null,upErr:"",pasteTxt:"",showPL:false};
 var D={customer:"",whtRate:.003,addCost:0,margins:[{name:"A",val:1000},{name:"B",val:800},{name:"C",val:600}],trkCost:0,trkFrom:"",trkTo:"",payTerms:PAY_OPTS[0],items:[_md(),_md(),_md()],showUpload:false,upTab:"excel",uping:false,upPreview:null,upErr:"",pasteTxt:"",showPL:false};
 
 function _mi(){return{id:Date.now()+Math.random(),name:"",qty:"",cif:"",remark:""}}

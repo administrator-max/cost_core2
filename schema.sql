@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS import_costings (
     import_duty NUMERIC(5, 4) DEFAULT 0,
     wht NUMERIC(5, 4) DEFAULT 0.025,
     port_charges NUMERIC(15, 2) DEFAULT 370,
-    hedge_rate NUMERIC(10, 2) DEFAULT 2.5,
+    hedge_rate NUMERIC(10, 2) DEFAULT 2.2,
     hedge_days INTEGER DEFAULT 60,
     tujuan VARCHAR(255) DEFAULT 'Cakung',
     is_pipa BOOLEAN DEFAULT false,
